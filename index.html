@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zone01 Profile</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app"></div>
+    <script>
+        // Configuration
+        const API = {
+            login: "https://learn.zone01oujda.ma/api/auth/signin",
+            graphql: "https://learn.zone01oujda.ma/api/graphql-engine/v1/graphql"
+        };
+
+        const QUERY = `query {
+            user {
+                login firstName lastName email auditRatio totalUp totalDown
+                finished_projects: groups(where: {group: {status: {_eq: finished}, _and: [{path: {_like: "%module%"}}, {path: {_nilike: "%piscine-js%"}}]}}) {
+                    group { path members { userLogin } }
+                }
+                transactions_aggregate(where: {eventId: {_eq: 41}, type: {_eq: "xp"}}) {
+                    aggregate { sum { amount } }
+                }
+            }
+        }`;
+
+        let userData = {};
+        let collaborators = [];
+        let token = null;
+
+        function saveToken(token) {
+            try {
+                localStorage.setItem('zone01_token', token);
+            } catch (e) {
+                console.log('localStorage not available');
+            }
+        }
+
+        function getToken() {
+            try {
+                return localStorage.getItem('zone01_token');
+            } catch (e) {
+                console.log('localStorage not available');
+                return null;
+            }
+        }
+
+        function removeToken() {
+            try {
+                localStorage.removeItem('zone01_token');
+            } catch (e) {
+                console.log('localStorage not available');
+            }
+        }
+
+        function isTokenValid(token) {
+            if (!token) return false;
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                const now = Date.now() / 1000;
+                return payload.exp > now;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // Utility function
+        function formatXP(bytes) {
+            if (bytes < 1000) return bytes + " XP";
+            if (bytes < 1000000) return Math.floor(bytes / 1000) + " kXP";
+            return Math.floor(bytes / 1000000) + " MXP";
+        }
+
+        // Show login page
+        function showLogin() {
+            document.getElementById('app').innerHTML = `
+                <div class="card login-box">
+                    <h1>Zone01 Login</h1>
+                    <input type="text" id="username" placeholder="Username" required>
+                    <input type="password" id="password" placeholder="Password" required>
+                    <button onclick="login()">Login</button>
+                    <div id="error" class="error"></div>
+                </div>
+            `;
+        }
+
+        // Handle login
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+
+            const credentials = btoa(`${username}:${password}`);
+
+            try {
+                const response = await fetch(API.login, {
+                    method: "POST",
+                    headers: { Authorization: `Basic ${credentials}` }
+                });
+
+                if (!response.ok) throw new Error('Invalid credentials');
+
+                token = await response.json();
+                saveToken(token); 
+                loadProfile();
+            } catch (error) {
+                document.getElementById('error').textContent = 'Login failed. Try again.';
+            }
+        }
+
+        // Load profile data
+        async function loadProfile() {
+            try {
+                const response = await fetch(API.graphql, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ query: QUERY })
+                });
+
+                const result = await response.json();
+                if (result.errors) throw new Error('Failed to fetch data');
+
+                const user = result.data.user[0];
+                userData = {
+                    username: user.login,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    email: user.email,
+                    auditRatio: parseFloat(user.auditRatio).toFixed(1),
+                    totalUp: user.totalUp,
+                    totalDown: user.totalDown,
+                    projects: user.finished_projects,
+                    xp: formatXP(user.transactions_aggregate.aggregate.sum.amount)
+                };
+
+                collaborators = [];
+                userData.projects.forEach(project => {
+                    project.group.members.forEach(member => {
+                        if (member.userLogin !== userData.username) {
+                            let collab = collaborators.find(c => c.name === member.userLogin);
+                            if (collab) {
+                                collab.count++;
+                            } else {
+                                collaborators.push({ name: member.userLogin, count: 1 });
+                            }
+                        }
+                    });
+                });
+
+                showProfile();
+            } catch (error) {
+                showLogin();
+            }
+        }
+
+        // Show profile page
+        function showProfile() {
+            document.getElementById('app').innerHTML = `
+                <div class="container">
+                    <div class="header">
+                        <h1>Welcome, ${userData.firstName}!</h1>
+                        <button class="logout-btn" onclick="logout()">Logout</button>
+                    </div>
+
+                    <div class="profile-grid">
+                        <div class="info-section">
+                            <div class="card">
+                                <h3>Personal Info</h3>
+                                <div class="stat"><span>Username:</span><span>${userData.username}</span></div>
+                                <div class="stat"><span>Email:</span><span>${userData.email}</span></div>
+                                <div class="stat"><span>XP:</span><span>${userData.xp}</span></div>
+                                <div class="stat"><span>Audit Ratio:</span><span>${userData.auditRatio}</span></div>
+                                <div class="stat"><span>Projects:</span><span>${userData.projects.length}</span></div>
+                            </div>
+
+                            <div class="card">
+                                <h3>Completed Projects</h3>
+                                <div class="projects">
+                                    ${userData.projects.map(p => `<div class="project">${p.group.path.split('/').pop()}</div>`).join('')}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="chart-section">
+                            <div class="card">
+                                <div>
+                                    <h3>Projects Completed</h3>
+                                    <div class="ratio-display" style="color: #4facfe;">${userData.projects.length}</div>
+                                    <div style="text-align: center; color: #666; margin-top: 10px; margin-bottom: 30px;">
+                                        Total finished projects
+                                    </div>
+                                </div>
+                                <div>
+                                    <h3>Collaboration Partners</h3>
+                                    <div id="collab-info" class="chart-info">Hover bars for details</div>
+                                    <div id="collab-chart" class="chart-container" style="height: 200px;"></div>
+                                </div>
+                            </div>
+
+                            <div class="card">
+                                <h3>Audit Ratio</h3>
+                                <div class="ratio-display">${userData.auditRatio}</div>
+                                <div id="ratio-bar" class="ratio-bar"></div>
+                                <div class="ratio-labels">
+                                    <span style="color: #28a745">Given: ${userData.totalUp}</span>
+                                    <span style="color: #dc3545">Received: ${userData.totalDown}</span>
+                                </div>
+                            </div>
+                            
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            drawCollaborationChart();
+            drawAuditRatio();
+        }
+// svg
+        function drawCollaborationChart() {
+            if (collaborators.length === 0) return;
+
+            collaborators.sort((a, b) => b.count - a.count);
+            const maxCount = collaborators[0].count;
+            const width = Math.max(300, collaborators.length * 40);
+
+            const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+            svg.setAttribute("width", width);
+            svg.setAttribute("height", "180");
+
+            collaborators.forEach((collab, i) => {
+                const barHeight = (collab.count / maxCount) * 140;
+                const x = i * 35 + 10;
+                const y = 170 - barHeight;
+
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", x);
+                rect.setAttribute("y", y);
+                rect.setAttribute("width", "25");
+                rect.setAttribute("height", barHeight);
+                rect.setAttribute("fill", "#4facfe");
+                rect.setAttribute("rx", "3");
+                rect.classList.add("bar");
+
+                rect.onmouseover = () => {
+                    document.getElementById('collab-info').textContent = `${collab.name}: ${collab.count} projects`;
+                };
+                rect.onmouseout = () => {
+                    document.getElementById('collab-info').textContent = 'Hover bars for details';
+                };
+
+                svg.appendChild(rect);
+            });
+
+            document.getElementById('collab-chart').appendChild(svg);
+        }
+
+       function drawAuditRatio() {
+    const total = userData.totalUp + userData.totalDown;
+    if (total === 0) return;  // avoid division by zero
+
+    const totalWidth = 00;
+    const height = 30;
+    const greenWidth = (userData.totalUp / total) * totalWidth;
+    const redWidth = (userData.totalDown / total) * totalWidth;
+
+    // Clear previous SVG if any
+    const container = document.getElementById('ratio-bar');
+    container.innerHTML = '';
+
+    // Create SVG element
+    const svgNS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(svgNS, "svg");
+    svg.setAttribute("width", totalWidth);
+    svg.setAttribute("height", height);
+    svg.style.border = "1px solid #ccc";
+    svg.style.borderRadius = "5px";
+
+    // Green rect (Given)
+    const greenRect = document.createElementNS(svgNS, "rect");
+    greenRect.setAttribute("x", 0);
+    greenRect.setAttribute("y", 0);
+    greenRect.setAttribute("width", greenWidth);
+    greenRect.setAttribute("height", height);
+    greenRect.setAttribute("fill", "#28a745"); // green color
+
+    // Red rect (Received)
+    const redRect = document.createElementNS(svgNS, "rect");
+    redRect.setAttribute("x", greenWidth);
+    redRect.setAttribute("y", 0);
+    redRect.setAttribute("width", redWidth);
+    redRect.setAttribute("height", height);
+    redRect.setAttribute("fill", "#dc3545"); // red color
+
+    // Append rects to SVG
+    svg.appendChild(greenRect);
+    svg.appendChild(redRect);
+
+    // Append SVG to container
+    container.appendChild(svg);
+}
+
+
+        function logout() {
+            token = null;
+            removeToken(); 
+            showLogin();
+        }
+
+        function initApp() {
+            const savedToken = getToken();
+            if (savedToken && isTokenValid(savedToken)) {
+                token = savedToken;
+                loadProfile();
+            } else {
+                removeToken();
+                showLogin();
+            }
+        }
+
+        initApp();
+    </script>
+</body>
+</html>
