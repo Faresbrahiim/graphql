@@ -6,7 +6,7 @@
 
         body {
             font-family: Arial, sans-serif;
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            background: linear-gradient(135deg, #969b9f 0%, #242929 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -48,7 +48,7 @@
         .login-box button {
             width: 100%;
             padding: 12px;
-            background: #4facfe;
+            background:  #242929;
             color: white;
             border: none;
             border-radius: 5px;
@@ -57,7 +57,7 @@
         }
 
         .login-box button:hover {
-            background: #3d8bfe;
+            background:  #969b9f;
         }
 
         .error {
@@ -76,7 +76,7 @@
 
         .logout-btn {
             padding: 8px 16px;
-            background: #ff4757;
+            background:  #242929;
             color: white;
             border: none;
             border-radius: 5px;
@@ -93,7 +93,7 @@
         .info-section h3 {
             color: #333;
             margin-bottom: 15px;
-            border-bottom: 2px solid #4facfe;
+            border-bottom: 2px solid  #242929;
             padding-bottom: 5px;
         }
 
