@@ -1,21 +1,33 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Zone01 Profile</title>
-<link rel="stylesheet" href="style.css" />
-</head>
-<body>
-<div id="app"></div>
-<script>
-  // API Endpoints
-  const ENDPOINTS = {
-    signInUrl: "https://learn.zone01oujda.ma/api/auth/signin",
-    graphQlUrl: "https://learn.zone01oujda.ma/api/graphql-engine/v1/graphql"
-  };
-  // GraphQL query string
-  const USER_QUERY = `query {
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zone01 Profile</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- mount point -->
+    <div id="app"></div>
+    <script>
+      // API Endpoints
+      // sign in for authentification
+      // it will be used to send credintials in header as base64 ,, then the backend will check for u of it valid or not ,,,
+      //checking in databse ,, if valid it create a json web token and send it back to u
+      // second api  used to bring api information such as username , name  email ect
+      const ENDPOINTS = {
+        signInUrl: "https://learn.zone01oujda.ma/api/auth/signin",
+        graphQlUrl:
+          "https://learn.zone01oujda.ma/api/graphql-engine/v1/graphql",
+      };
+      // GraphQL query string
+      // user -> filed  -> from user select login firstName , lastName , email auditratio , totalUp , totaldown
+      // finished projcet is alia  ,  store the result of the query
+      // from the groups of the user , each grp it's status finished and it's path is module and doesn't match piscine
+      // bring the user login of each grp and projcet name (path)
+      // from thhe transaction_aggregate ,, where the eventid = 41 and type is xp
+      //  sums the amount column over those filtered rows.
+      const USER_QUERY = `query {
     user {
       login firstName lastName email auditRatio totalUp totalDown
       finished_projects: groups(where: {group: {status: {_eq: finished}, _and: [{path: {_like: "%module%"}}, {path: {_nilike: "%piscine-js%"}}]}}) {
@@ -27,46 +39,80 @@
     }
   }`;
 
-  // Global state
-  let currentUser = {};
-  let collaboratorList = [];
-  let authToken = null;
+      // Global state
+      let currentUser = {}; // store information about the talent
+      let collaboratorList = []; // store information about the collaborators
+      let authToken = null; // store the authentification about the  user
 
-  // Local Storage Token Management
-  function storeToken(token) {
-    try { localStorage.setItem('zone01_auth_token', token); }
-    catch { console.warn('Local storage unavailable'); }
-  }
-  function fetchToken() {
-    try { return localStorage.getItem('zone01_auth_token'); }
-    catch { console.warn('Local storage unavailable'); return null; }
-  }
-  function clearToken() {
-    try { localStorage.removeItem('zone01_auth_token'); }
-    catch { console.warn('Local storage unavailable'); }
-  }
+      // helper functions
+      // Local Storage Token Management
+      //  store the token  in the localstoreage  as key and value to graunte the presistance of authentification
+      // console.warn appeard in  yellow
+      function storeToken(token) {
+        try {
+          localStorage.setItem("zone01_auth_token", token);
+        } catch {
+          console.warn("Local storage unavailable");
+        }
+      }
+      // bring the token from localStorage ....
+      function fetchToken() {
+        try {
+          return localStorage.getItem("zone01_auth_token");
+        } catch {
+          console.warn("Local storage unavailable");
+          return null;
+        }
+      }
+      // clear token from localStorage ,,  when user logged in or tokn expired
+      function clearToken() {
+        try {
+          localStorage.removeItem("zone01_auth_token");
+        } catch {
+          console.warn("Local storage unavailable");
+        }
+      }
 
-  // JWT validation
-  function checkTokenValidity(token) {
-    if (!token) return false;
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.exp > Date.now() / 1000;
-    } catch {
-      return false;
-    }
-  }
+      // JWT validation
+      // idf token does not exist return false ,, no token if avaible
+      // header.payload.signature
+      // payload: the data you want (like user info, expiry time)
+      // atop is the reverse of base64 ,, it used to make the base64 normal string
+      // json , makes the token js object
+      /*
+      {
+     "sub": "1234567890",
+     "name": "Ibrahim Fares",
+     "iat": 1689900000,
+     "exp": 1692500000,
+     "role": "user",
+     "email": "ibrahim@example.com"
+      }
+      */
+     // if play.exp > date of the moment means the token is expired
+      function checkTokenValidity(token) {
+        if (!token) return false;
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          return payload.exp > Date.now() / 1000;
+        } catch {
+          return false;
+        }
+      }
 
-  // Utility to format XP nicely
-  function formatExperience(xpValue) {
-    if (xpValue < 1000) return xpValue + " XP";
-    if (xpValue < 1_000_000) return Math.floor(xpValue / 1000) + " kXP";
-    return Math.floor(xpValue / 1_000_000) + " MXP";
-  }
+      // Utility to format XP nicely
+      // if the xp < 1000 just return it as it and add xp
+      // if the xp between 1000 and 100000 , /100 to make it in kxp
+      // else .... mXP 
+      function formatExperience(xpValue) {
+        if (xpValue < 1000) return xpValue + " XP";
+        if (xpValue < 1_000_000) return Math.floor(xpValue / 1000) + " kXP";
+        return Math.floor(xpValue / 1_000_000) + " MXP";
+      }
 
-  // Render login form
-  function renderLoginForm() {
-    document.getElementById('app').innerHTML = `
+      // Render login form
+      function renderLoginForm() {
+        document.getElementById("app").innerHTML = `
       <div class="card login-box">
         <h1>Zone01 Login</h1>
         <input type="text" id="input-username" placeholder="Username" required />
@@ -75,74 +121,90 @@
         <div id="login-error" class="error"></div>
       </div>
     `;
-  }
-  // Login handler
-  async function submitLogin() {
-    const username = document.getElementById('input-username').value;
-    const password = document.getElementById('input-password').value;
-    const basicAuth = btoa(`${username}:${password}`);
+      }
+      // Login handler
+      // btoa -> to base64
+      // basic atuthentification
+      // if the user exist it return the token ... 
+      // basic ... is a keyword  " hey server I'm using Basic Authentication, and the credentials are Base64-encoded
+      async function submitLogin() {
+        const username = document.getElementById("input-username").value;
+        const password = document.getElementById("input-password").value;
+        const basicAuth = btoa(`${username}:${password}`);
 
-    try {
-      const res = await fetch(ENDPOINTS.signInUrl, {
-        method: "POST",
-        headers: { Authorization: `Basic ${basicAuth}` }
-      });
-      if (!res.ok) throw new Error('Auth failed');
+        try {
+          const res = await fetch(ENDPOINTS.signInUrl, {
+            method: "POST",
+            headers: { Authorization: `Basic ${basicAuth}` },
+          });
+          if (!res.ok) throw new Error("Auth failed");
 
-      authToken = await res.json();
-      storeToken(authToken);
-      fetchUserProfile();
-    } catch {
-      document.getElementById('login-error').textContent = 'Login failed. Please try again.';
-    }
-  }
+          authToken = await res.json();
+          storeToken(authToken);
+          fetchUserProfile();
+        } catch {
+          document.getElementById("login-error").textContent =
+            "Login failed. Please try again.";
+        }
+      }
 
-  // Fetch user profile and collaborators from GraphQL
-  async function fetchUserProfile() {
-    try {
-      const res = await fetch(ENDPOINTS.graphQlUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ query: USER_QUERY })
-      });
-      const data = await res.json();
-      if (data.errors) throw new Error('Data fetch error');
+      // Fetch user profile and collaborators from GraphQL
+      // bring information of the  talents and it's collaborators
+      // bearer also is a key word tells
+      // "This is a Bearer token (usually a JWT), and I want to access protected resources." like cookies ect ...
+      // the query in graphQl send in the body ,, not in the header
+      async function fetchUserProfile() {
+        try {
+          const res = await fetch(ENDPOINTS.graphQlUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ query: USER_QUERY }),
+          });
+          const data = await res.json();
+          if (data.errors) throw new Error("Data fetch error");
 
-      const user = data.data.user[0];
-      currentUser = {
-        username: user.login,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        auditRatio: parseFloat(user.auditRatio).toFixed(1),
-        totalUp: user.totalUp,
-        totalDown: user.totalDown,
-        projects: user.finished_projects,
-        xp: formatExperience(user.transactions_aggregate.aggregate.sum.amount)
-      };
+          // for the talent bring ,, the login the firstName the lastname the email the auditratio ,,, and make only 1 . like 0.1 0.2 etc
+          // total up how much u gave ,, and how much u received ... and the project ... as array[] ... and the xp -> aftre make it's format good 
+          const user = data.data.user[0];
+          currentUser = {
+            username: user.login,
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+            auditRatio: parseFloat(user.auditRatio).toFixed(1),
+            totalUp: user.totalUp,
+            totalDown: user.totalDown,
+            projects: user.finished_projects,
+            xp: formatExperience(
+              user.transactions_aggregate.aggregate.sum.amount
+            ),
+          };
+          // itearete for each projects collab and execule current talent ,,,,  then count++ to count how many project are  done with this colab
+          collaboratorList = [];
+          currentUser.projects.forEach((proj) => {
+            proj.group.members.forEach((member) => {
+              if (member.userLogin !== currentUser.username) {
+                const existing = collaboratorList.find(
+                  (c) => c.name === member.userLogin
+                );
+                if (existing) existing.count++;
+                else
+                  collaboratorList.push({ name: member.userLogin, count: 1 });
+              }
+            });
+          });
 
-      collaboratorList = [];
-      currentUser.projects.forEach(proj => {
-        proj.group.members.forEach(member => {
-          if (member.userLogin !== currentUser.username) {
-            const existing = collaboratorList.find(c => c.name === member.userLogin);
-            if (existing) existing.count++;
-            else collaboratorList.push({ name: member.userLogin, count: 1 });
-          }
-        });
-      });
-
-      renderUserProfile();
-    } catch {
-      renderLoginForm();
-    }
-  }
-  // Display user profile UI
-  function renderUserProfile() {
-    document.getElementById('app').innerHTML = `
+          renderUserProfile();
+        } catch {
+          renderLoginForm();
+        }
+      }
+      // Display user profile UI
+      function renderUserProfile() {
+        document.getElementById("app").innerHTML = `
       <div class="container">
         <div class="header">
           <h1>Welcome, ${currentUser.firstName}!</h1>
@@ -153,17 +215,33 @@
           <section class="info-section">
             <div class="card">
               <h3>Personal Information</h3>
-              <div class="stat"><span>Username:</span><span>${currentUser.username}</span></div>
-              <div class="stat"><span>Email:</span><span>${currentUser.email}</span></div>
-              <div class="stat"><span>XP:</span><span>${currentUser.xp}</span></div>
-              <div class="stat"><span>Audit Ratio:</span><span>${currentUser.auditRatio}</span></div>
-              <div class="stat"><span>Projects:</span><span>${currentUser.projects.length}</span></div>
+              <div class="stat"><span>Username:</span><span>${
+                currentUser.username
+              }</span></div>
+              <div class="stat"><span>Email:</span><span>${
+                currentUser.email
+              }</span></div>
+              <div class="stat"><span>XP:</span><span>${
+                currentUser.xp
+              }</span></div>
+              <div class="stat"><span>Audit Ratio:</span><span>${
+                currentUser.auditRatio
+              }</span></div>
+              <div class="stat"><span>Projects:</span><span>${
+                currentUser.projects.length
+              }</span></div>
             </div>
-
             <div class="card">
               <h3>Completed Projects</h3>
               <div class="projects">
-                ${currentUser.projects.map(p => `<div class="project">${p.group.path.split('/').pop()}</div>`).join('')}
+                ${currentUser.projects
+                  .map(
+                    (p) =>
+                      `<div class="project">${p.group.path
+                        .split("/")
+                        .pop()}</div>`
+                  )
+                  .join("")}
               </div>
             </div>
           </section>
@@ -172,7 +250,9 @@
             <div class="card">
               <div>
                 <h3>Projects Completed</h3>
-                <div class="ratio-display" style="color:  #969b9f;">${currentUser.projects.length}</div>
+                <div class="ratio-display" style="color:  #969b9f;">${
+                  currentUser.projects.length
+                }</div>
                 <div style="text-align:center; color:#666; margin: 10px 0 30px 0;">
                   Total finished projects
                 </div>
@@ -189,8 +269,12 @@
               <div class="ratio-display">${currentUser.auditRatio}</div>
               <div id="audit-ratio-bar" class="ratio-bar"></div>
               <div class="ratio-labels">
-                <span style="color: #28a745">Given: ${currentUser.totalUp}</span>
-                <span style="color: #dc3545">Received: ${currentUser.totalDown}</span>
+                <span style="color: #28a745">Given: ${
+                  currentUser.totalUp
+                }</span>
+                <span style="color: #dc3545">Received: ${
+                  currentUser.totalDown
+                }</span>
               </div>
             </div>
           </section>
@@ -198,113 +282,116 @@
       </div>
     `;
 
-    renderCollabChart();
-    renderAuditChart();
-  }
+        renderCollabChart();
+        renderAuditChart();
+      }
 
-  // Draw the collaboration bar chart SVG
-  function renderCollabChart() {
-    if (collaboratorList.length === 0) return;
+      // Draw the collaboration bar chart SVG
+      function renderCollabChart() {
+        if (collaboratorList.length === 0) return;
 
-    collaboratorList.sort((a, b) => b.count - a.count);
-    const maxCount = collaboratorList[0].count;
-    const svgWidth = Math.max(300, collaboratorList.length * 40);
+        collaboratorList.sort((a, b) => b.count - a.count);
+        const maxCount = collaboratorList[0].count;
+        const svgWidth = Math.max(300, collaboratorList.length * 40);
 
-    const svgNS = "http://www.w3.org/2000/svg";
-    const svgElem = document.createElementNS(svgNS, "svg");
-    svgElem.setAttribute("width", svgWidth);
-    svgElem.setAttribute("height", "180");
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svgElem = document.createElementNS(svgNS, "svg");
+        svgElem.setAttribute("width", svgWidth);
+        svgElem.setAttribute("height", "180");
 
-    collaboratorList.forEach((collab, index) => {
-      const barHeight = (collab.count / maxCount) * 140;
-      const xPos = index * 35 + 10;
-      const yPos = 170 - barHeight;
+        collaboratorList.forEach((collab, index) => {
+          const barHeight = (collab.count / maxCount) * 140;
+          const xPos = index * 35 + 10;
+          const yPos = 170 - barHeight;
 
-      const rect = document.createElementNS(svgNS, "rect");
-      rect.setAttribute("x", xPos);
-      rect.setAttribute("y", yPos);
-      rect.setAttribute("width", "25");
-      rect.setAttribute("height", barHeight);
-      rect.setAttribute("fill", " #969b9f");
-      rect.setAttribute("rx", "3");
-      rect.classList.add("bar");
+          const rect = document.createElementNS(svgNS, "rect");
+          rect.setAttribute("x", xPos);
+          rect.setAttribute("y", yPos);
+          rect.setAttribute("width", "25");
+          rect.setAttribute("height", barHeight);
+          rect.setAttribute("fill", " #969b9f");
+          rect.setAttribute("rx", "3");
+          rect.classList.add("bar");
 
-      rect.onmouseenter = () => {
-        document.getElementById('collab-info').textContent = `${collab.name}: ${collab.count} projects`;
-      };
-      rect.onmouseleave = () => {
-        document.getElementById('collab-info').textContent = 'Hover bars for details';
-      };
+          rect.onmouseenter = () => {
+            document.getElementById(
+              "collab-info"
+            ).textContent = `${collab.name}: ${collab.count} projects`;
+          };
+          rect.onmouseleave = () => {
+            document.getElementById("collab-info").textContent =
+              "Hover bars for details";
+          };
 
-      svgElem.appendChild(rect);
-    });
+          svgElem.appendChild(rect);
+        });
 
-    const container = document.getElementById('collab-chart');
-    container.innerHTML = '';
-    container.appendChild(svgElem);
-  }
+        const container = document.getElementById("collab-chart");
+        container.innerHTML = "";
+        container.appendChild(svgElem);
+      }
 
-  // Draw the audit ratio SVG bar
-  function renderAuditChart() {
-    const total = currentUser.totalUp + currentUser.totalDown;
-    if (total === 0) return;
+      // Draw the audit ratio SVG bar
+      function renderAuditChart() {
+        const total = currentUser.totalUp + currentUser.totalDown;
+        if (total === 0) return;
 
-    const barWidth = 600;
-    const barHeight = 30;
-    const greenWidth = (currentUser.totalUp / total) * barWidth;
-    const redWidth = (currentUser.totalDown / total) * barWidth;
+        const barWidth = 600;
+        const barHeight = 30;
+        const greenWidth = (currentUser.totalUp / total) * barWidth;
+        const redWidth = (currentUser.totalDown / total) * barWidth;
 
-    const container = document.getElementById('audit-ratio-bar');
-    container.innerHTML = '';
+        const container = document.getElementById("audit-ratio-bar");
+        container.innerHTML = "";
 
-    const svgNS = "http://www.w3.org/2000/svg";
-    const svgElem = document.createElementNS(svgNS, "svg");
-    svgElem.setAttribute("width", barWidth);
-    svgElem.setAttribute("height", barHeight);
-    svgElem.style.border = "1px solid #ccc";
-    svgElem.style.borderRadius = "5px";
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svgElem = document.createElementNS(svgNS, "svg");
+        svgElem.setAttribute("width", barWidth);
+        svgElem.setAttribute("height", barHeight);
+        svgElem.style.border = "1px solid #ccc";
+        svgElem.style.borderRadius = "5px";
 
-    const greenRect = document.createElementNS(svgNS, "rect");
-    greenRect.setAttribute("x", 0);
-    greenRect.setAttribute("y", 0);
-    greenRect.setAttribute("width", greenWidth);
-    greenRect.setAttribute("height", barHeight);
-    greenRect.setAttribute("fill", "#28a745");
+        const greenRect = document.createElementNS(svgNS, "rect");
+        greenRect.setAttribute("x", 0);
+        greenRect.setAttribute("y", 0);
+        greenRect.setAttribute("width", greenWidth);
+        greenRect.setAttribute("height", barHeight);
+        greenRect.setAttribute("fill", "#28a745");
 
-    const redRect = document.createElementNS(svgNS, "rect");
-    redRect.setAttribute("x", greenWidth);
-    redRect.setAttribute("y", 0);
-    redRect.setAttribute("width", redWidth);
-    redRect.setAttribute("height", barHeight);
-    redRect.setAttribute("fill", "#dc3545");
+        const redRect = document.createElementNS(svgNS, "rect");
+        redRect.setAttribute("x", greenWidth);
+        redRect.setAttribute("y", 0);
+        redRect.setAttribute("width", redWidth);
+        redRect.setAttribute("height", barHeight);
+        redRect.setAttribute("fill", "#dc3545");
 
-    svgElem.appendChild(greenRect);
-    svgElem.appendChild(redRect);
+        svgElem.appendChild(greenRect);
+        svgElem.appendChild(redRect);
 
-    container.appendChild(svgElem);
-  }
+        container.appendChild(svgElem);
+      }
 
-  // Logout function
-  function handleLogout() {
-    authToken = null;
-    clearToken();
-    renderLoginForm();
-  }
+      // Logout function
+      function handleLogout() {
+        authToken = null;
+        clearToken();
+        renderLoginForm();
+      }
 
-  // Initialize app on page load
-  function initializeApp() {
-    const saved = fetchToken();
-    if (saved && checkTokenValidity(saved)) {
-      authToken = saved;
-      fetchUserProfile();
-    } else {
-      clearToken();
-      renderLoginForm();
-    }
-  }
+      // Initialize app on page load
+      function initializeApp() {
+        const saved = fetchToken();
+        if (saved && checkTokenValidity(saved)) {
+          authToken = saved;
+          fetchUserProfile();
+        } else {
+          clearToken();
+          renderLoginForm();
+        }
+      }
 
-  // Start
-  initializeApp();
-</script>
-</body>
+      // Start
+      initializeApp();
+    </script>
+  </body>
 </html>
